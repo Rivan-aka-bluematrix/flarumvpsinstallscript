@@ -2,6 +2,7 @@
 
 read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
 
+domain_named=$( echo "$domain_name" | tr -d . )
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
 sudo gpasswd -a $USER www-data
 
@@ -156,25 +157,12 @@ fi
 sudo service php7.0-fpm stop; sudo service php7.0-fpm start
 sudo service nginx configtest && sudo service nginx restart
 
+# Generate Password
+
+generated_mysql_pass=$(pwgen 20 1)
+read -sp 'Enter mysql root password ' mysql_pass
+
 # Database creation
-
-# Generate Password
-generated_mysql_pass=$(pwgen 20 1)
-read -sp 'Enter mysql root password ' mysql_pass
-
-domain_named=$( echo "$domain_name" | tr -d . )
-
-#!/bin/bash
-
-read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
-
-
-# Generate Password
-unset mysql_pass generated_mysql_pass
-generated_mysql_pass=$(pwgen 20 1)
-read -sp 'Enter mysql root password ' mysql_pass
-
-domain_named=$( echo "$domain_name" | tr -d . )
 
 mysql -uroot -p"$mysql_pass" -e "CREATE DATABASE IF NOT EXISTS flarum_$domain_named ;"
 mysql -uroot -p"$mysql_pass" -e "CREATE USER flarum_$domain_named@localhost IDENTIFIED BY '$generated_mysql_pass';"
