@@ -1,21 +1,20 @@
 #!/bin/bash
 
-read -p "Please Enter the Doman Name for this Flarum instance: " domain_name;
+read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
 
+domain_named=$( echo "$domain_name" | tr -d . )
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
-OS_version=$(lsb_release -a 2> /dev/null | grep Description | tr -d \\t | cut -f2 -d:)
 sudo gpasswd -a $USER www-data
 
 # Update lists
 echo 'Updating...'
 sudo apt-get update 1> /dev/null
 
+
 # Install packages
-for package in pwgen php7.0-mysql zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server
-  do
-    dpkg -s "$package" &> /dev/null || packages="$packages $package"
-done
-sudo apt-get install $packages -qq
+echo 'Installing Prereqs...'
+sudo apt-get install letsencrypt pwgen php7.0-mysql php7.0-common zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server -qq
+
 
 # Install composer
 if [ ! -e /usr/bin/composer ]
@@ -24,6 +23,7 @@ if [ ! -e /usr/bin/composer ]
     sudo php composer-setup.php --install-dir=/usr/bin --filename composer
     php -r "unlink('composer-setup.php');"
 fi
+
 
 # Install flarum
 echo Installing flarum..
@@ -38,10 +38,8 @@ sudo chgrp -R "$webuser_group" "$flarum_install/assets" "$flarum_install/storage
 
 ### Write php7-fpm pool config
 echo writing php7-fpm config
-
-sudo tee << 'EOF' /etc/php/7.0/fpm/pool.d/$domain_name.conf &> /dev/null
-[flarum]
-# auto-generated
+echo "
+[$domain_name]
 
 listen = /var/run/php7-fpm.$domain_name.sock
 listen.allowed_clients = 127.0.0.1
@@ -59,11 +57,12 @@ pm.max_requests = 5000
 pm.process_idle_timeout = 60s
 
 chdir = /
-EOF
+" > /etc/php/7.0/fpm/pool.d/$domain_name.conf
 
 ### Write Nginx config
 echo writing nginx config
-sudo tee << EOF /etc/nginx/sites-available/$domain_name &> /dev/null
+
+echo "
 server {
   listen 80;
 
@@ -72,14 +71,21 @@ server {
   error_log /var/log/nginx/error.log error;
 
   server_name $domain_name;
-EOF
+
+" > /etc/nginx/sites-available/$domain_name
 
 sudo tee --append << 'EOF' /etc/nginx/sites-available/$domain_name &> /dev/null
 
-   location / { try_files $uri $uri/ /index.php?$query_string; }
+
+    location / { try_files $uri $uri/ /index.php?$query_string; }
     location /api { try_files $uri $uri/ /api.php?$query_string; }
     location /admin { try_files $uri $uri/ /admin.php?$query_string; }
+    location ~ /.well-known {
+                allow all;
+        }
+EOF
 
+echo "
     location /flarum {
         deny all;
         return 404;
@@ -87,9 +93,14 @@ sudo tee --append << 'EOF' /etc/nginx/sites-available/$domain_name &> /dev/null
 
     location ~ .php$ {
         fastcgi_split_path_info ^(.+.php)(/.+)$;
-        fastcgi_pass unix:/var/run/php7-fpm.flarum.sock;
+        fastcgi_pass unix:/var/run/php7-fpm.$domain_name.sock;
         fastcgi_index index.php;
         include fastcgi_params;
+
+" >> /etc/nginx/sites-available/$domain_name
+
+sudo tee --append << 'EOF' /etc/nginx/sites-available/$domain_name &> /dev/null
+
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }
 
@@ -132,37 +143,80 @@ EOF
 # Enable flarum site
 sudo ln -s /etc/nginx/sites-available/$domain_name /etc/nginx/sites-enabled/$domain_name
 
-# Remove default nginx welcome page
-if [ -f /etc/nginx/sites-enabled/default ]
-  then
-    echo '/etc/nginx/sites-enabled/default exists - Remove? (y/n)'
-    read  answer
-    if [ "${answer,,}" == y ]
-      then
-        echo 'Removing /etc/nginx/sites-enabled/default'
-        sudo rm /etc/nginx/sites-enabled/default
-    fi
+#Stop apache2 if running and start other services
+
+if (( $(ps -ef | grep -v grep | grep apache2 | wc -l) > 0 ))
+then
+sudo service apache2 stop
 fi
 
-#Stop apache2 if running and start other services
-sudo service apache2 stop
 sudo service php7.0-fpm stop; sudo service php7.0-fpm start
 sudo service nginx configtest && sudo service nginx restart
 
-# Database creation
-
 # Generate Password
+
 generated_mysql_pass=$(pwgen 20 1)
 read -sp 'Enter mysql root password ' mysql_pass
 
-
-mysql -uroot -p"$mysql_pass" -e 'CREATE DATABASE IF NOT EXISTS `flarum_database` ;'
-mysql -uroot -p"$mysql_pass" -e "CREATE USER 'flarum_database'@'localhost' IDENTIFIED BY '$generated_mysql_pass';"
-mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON * . * TO 'flarum_database'@'localhost' IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
-mysql -uroot -p"$mysql_pass" -e 'GRANT ALL PRIVILEGES ON `flarum_database` . * TO 'flarum_database'@'localhost';'
+# Database creation
+mysql -uroot -p"$mysql_pass" -e "CREATE DATABASE IF NOT EXISTS flarum_$domain_named ;"
+mysql -uroot -p"$mysql_pass" -e "CREATE USER flarum_$domain_named@localhost IDENTIFIED BY '$generated_mysql_pass';"
+mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON flarum_$domain_named.* TO flarum_$domain_named@localhost IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
+mysql -uroot -p"$mysql_pass" -e "GRANT ALL PRIVILEGES ON flarum_$domain_named.* TO flarum_$domain_named@localhost;"
 
 echo ""
-echo 'Flarum username -> flarum_database'
-echo 'Flarum database -> flarum_database'
+echo "Flarum username -> flarum_$domain_named"
+echo "Flarum database -> flarum_$domain_named"
 echo 'Flarum database password ->' "$generated_mysql_pass"
 unset mysql_pass generated_mysql_pass
+sleep 2
+
+# Acquire LetsEncrypt Cert
+echo "Please finish setup at http://$domain_name with a web browser."
+read -p "After you are finished press [Enter] key to obtain & install SSL Cert..."
+
+letsencrypt certonly -a webroot --webroot-path=/var/www/$domain_name -d $domain_name
+
+if [ ! -f /etc/ssl/certs/dhparam.pem ]; then
+sudo openssl dhparam -out /etc/ssl/certs/dhparam.pem 2048
+   fi
+
+# Create Snippets
+echo "
+ssl_certificate /etc/letsencrypt/live/"$domain_name"/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/"$domain_name"/privkey.pem;
+" >> /etc/nginx/snippets/ssl-"$domain_name".conf
+
+if [ ! -f /etc/nginx/snippets/ssl-params.conf ]; then
+echo "
+ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+ssl_prefer_server_ciphers on;
+ssl_ciphers "EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH";
+ssl_ecdh_curve secp384r1;
+ssl_session_cache shared:SSL:10m;
+ssl_session_tickets off;
+ssl_stapling on;
+ssl_stapling_verify on;
+resolver 8.8.8.8 8.8.4.4 valid=300s;
+resolver_timeout 5s;
+add_header Strict-Transport-Security "max-age=63072000; includeSubdomains";
+add_header X-Frame-Options DENY;
+add_header X-Content-Type-Options nosniff;
+ssl_dhparam /etc/ssl/certs/dhparam.pem;
+" >> /etc/nginx/snippets/ssl-params.conf
+   fi
+
+# Modify Nginx Conf
+
+sudo cp /etc/nginx/sites-available/domain_name /etc/nginx/sites-available/$domain_name.bak
+
+    root /var/www/newoctober.pl3bs.us;
+    index index.php index.html index.htm;
+    error_log /var/log/nginx/error.log error;
+
+
+
+sed -i "s+server_name $domain_name+&\n  return 301 https://$domain_name;\n}\nserver {\n\n    listen 443 ssl http2;\n    include snippets/ssl-$domain_name.conf;\n    include snippets/ssl-params.conf;\n    root /var/www/newoctober.pl3bs.us;\n    index index.php index.html index.htm;\n    error_log /var/log/nginx/error.log error+" /etc/nginx/sites-available/"$domain_name"
+nginx -t && service nginx restart
+
+sed -i "s/http/https/" /var/www/$domain_name/config.php
