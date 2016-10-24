@@ -10,12 +10,11 @@ sudo gpasswd -a $USER www-data
 echo 'Updating...'
 sudo apt-get update 1> /dev/null
 
+
 # Install packages
-for package in pwgen php7.0-mysql zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server
-  do
-    dpkg -s "$package" &> /dev/null || packages="$packages $package"
-done
-sudo apt-get install $packages -qq
+echo 'Installing Prereqs...'
+sudo apt-get install pwgen php7.0-mysql php7.0-common zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server -qq
+
 
 # Install composer
 if [ ! -e /usr/bin/composer ]
@@ -24,6 +23,7 @@ if [ ! -e /usr/bin/composer ]
     sudo php composer-setup.php --install-dir=/usr/bin --filename composer
     php -r "unlink('composer-setup.php');"
 fi
+
 
 # Install flarum
 echo Installing flarum..
@@ -38,7 +38,6 @@ sudo chgrp -R "$webuser_group" "$flarum_install/assets" "$flarum_install/storage
 
 ### Write php7-fpm pool config
 echo writing php7-fpm config
-
 echo "
 [$domain_name]
 
