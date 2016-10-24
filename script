@@ -164,10 +164,22 @@ read -sp 'Enter mysql root password ' mysql_pass
 
 domain_named=$( echo "$domain_name" | tr -d . )
 
-mysql -uroot -p"$mysql_pass" -e "CREATE DATABASE IF NOT EXISTS `flarum_$domain_named` ;"
-mysql -uroot -p"$mysql_pass" -e "CREATE USER 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass';"
-mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON flarum_$domain_named.* TO 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
-mysql -uroot -p"$mysql_pass" -e "GRANT ALL PRIVILEGES ON `flarum_$domain_named`.* TO 'flarum_$domain_named'@'localhost';"
+#!/bin/bash
+
+read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
+
+
+# Generate Password
+unset mysql_pass generated_mysql_pass
+generated_mysql_pass=$(pwgen 20 1)
+read -sp 'Enter mysql root password ' mysql_pass
+
+domain_named=$( echo "$domain_name" | tr -d . )
+
+mysql -uroot -p"$mysql_pass" -e "CREATE DATABASE IF NOT EXISTS flarum_$domain_named ;"
+mysql -uroot -p"$mysql_pass" -e "CREATE USER flarum_$domain_named@localhost IDENTIFIED BY '$generated_mysql_pass';"
+mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON flarum_$domain_named.* TO flarum_$domain_named@localhost IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
+mysql -uroot -p"$mysql_pass" -e "GRANT ALL PRIVILEGES ON flarum_$domain_named.* TO flarum_$domain_named@localhost;"
 
 echo ""
 echo "Flarum username -> flarum_$domain_named"
