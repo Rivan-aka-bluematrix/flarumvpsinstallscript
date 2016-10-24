@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read -p "Please Enter the Doman Name for this Flarum instance: " domain_name;
+read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
 
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
 sudo gpasswd -a $USER www-data
@@ -162,14 +162,194 @@ sudo service nginx configtest && sudo service nginx restart
 generated_mysql_pass=$(pwgen 20 1)
 read -sp 'Enter mysql root password ' mysql_pass
 
+domain_named=$( echo "$domain_name" | tr -d . )
 
-mysql -uroot -p"$mysql_pass" -e 'CREATE DATABASE IF NOT EXISTS `flarum_database` ;'
-mysql -uroot -p"$mysql_pass" -e "CREATE USER 'flarum_database'@'localhost' IDENTIFIED BY '$generated_mysql_pass';"
-mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON * . * TO 'flarum_database'@'localhost' IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
-mysql -uroot -p"$mysql_pass" -e 'GRANT ALL PRIVILEGES ON `flarum_database` . * TO 'flarum_database'@'localhost';'
+mysql -uroot -p"$mysql_pass" -e 'CREATE DATABASE IF NOT EXISTS `flarum_$domain_named` ;'
+mysql -uroot -p"$mysql_pass" -e "CREATE USER 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass';"
+mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON flarum_$domain_named.* TO 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
+mysql -uroot -p"$mysql_pass" -e 'GRANT ALL PRIVILEGES ON `flarum_$domain_named`.* TO 'flarum_$domain_named'@'localhost';'
 
 echo ""
-echo 'Flarum username -> flarum_database'
-echo 'Flarum database -> flarum_database'
+echo 'Flarum username -> flarum_$domain_named'
+echo 'Flarum database -> flarum_$domain_named'
+echo 'Flarum database password ->' "$generated_mysql_pass"
+unset mysql_pass generated_mysql_pass
+root@ubuntu-2gb-nyc3-01:~# ^C
+root@ubuntu-2gb-nyc3-01:~# nano script
+root@ubuntu-2gb-nyc3-01:~# cat script
+#!/bin/bash
+
+read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
+
+flarum_install="/var/www/$domain_name" webuser_group='www-data'
+sudo gpasswd -a $USER www-data
+
+# Update lists
+echo 'Updating...'
+sudo apt-get update 1> /dev/null
+
+# Install packages
+for package in pwgen php7.0-mysql zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server
+  do
+    dpkg -s "$package" &> /dev/null || packages="$packages $package"
+done
+sudo apt-get install $packages -qq
+
+# Install composer
+if [ ! -e /usr/bin/composer ]
+  then
+    php -r "readfile('https://getcomposer.org/installer');" > composer-setup.php
+    sudo php composer-setup.php --install-dir=/usr/bin --filename composer
+    php -r "unlink('composer-setup.php');"
+fi
+
+# Install flarum
+echo Installing flarum..
+composer create-project flarum/flarum "$flarum_install" --stability=beta
+
+
+# Change group and permissions
+chmod 775 "$flarum_install"
+chmod -R 775 "$flarum_install/assets" "$flarum_install/storage"
+sudo chgrp "$webuser_group" "$flarum_install"
+sudo chgrp -R "$webuser_group" "$flarum_install/assets" "$flarum_install/storage"
+
+### Write php7-fpm pool config
+echo writing php7-fpm config
+
+echo "
+[$domain_name]
+
+listen = /var/run/php7-fpm.$domain_name.sock
+listen.allowed_clients = 127.0.0.1
+
+user = www-data
+group = www-data
+
+listen.owner = www-data
+listen.group = www-data
+
+pm = ondemand
+
+pm.max_children = 10
+pm.max_requests = 5000
+pm.process_idle_timeout = 60s
+
+chdir = /
+" > /etc/php/7.0/fpm/pool.d/$domain_name.conf
+
+### Write Nginx config
+echo writing nginx config
+
+echo "
+server {
+  listen 80;
+
+  root $flarum_install;
+  index index.php index.html index.htm;
+  error_log /var/log/nginx/error.log error;
+
+  server_name $domain_name;
+
+" > /etc/nginx/sites-available/$domain_name
+
+sudo tee --append << 'EOF' /etc/nginx/sites-available/$domain_name &> /dev/null
+
+
+    location / { try_files $uri $uri/ /index.php?$query_string; }
+    location /api { try_files $uri $uri/ /api.php?$query_string; }
+    location /admin { try_files $uri $uri/ /admin.php?$query_string; }
+EOF
+
+echo "
+    location /flarum {
+        deny all;
+        return 404;
+    }
+
+    location ~ .php$ {
+        fastcgi_split_path_info ^(.+.php)(/.+)$;
+        fastcgi_pass unix:/var/run/php7-fpm.$domain_name.sock;
+        fastcgi_index index.php;
+        include fastcgi_params;
+
+" >> /etc/nginx/sites-available/$domain_name
+
+sudo tee --append << 'EOF' /etc/nginx/sites-available/$domain_name &> /dev/null
+
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    location ~* \.html$ {
+        expires -1;
+    }
+
+    location ~* \.(css|js|gif|jpe?g|png)$ {
+        expires 1M;
+        add_header Pragma public;
+        add_header Cache-Control "public, must-revalidate, proxy-revalidate";
+    }
+
+    gzip on;
+    gzip_http_version 1.1;
+    gzip_vary on;
+    gzip_comp_level 6;
+    gzip_proxied any;
+    gzip_types application/atom+xml
+               application/javascript
+               application/json
+               application/vnd.ms-fontobject
+               application/x-font-ttf
+               application/x-web-app-manifest+json
+               application/xhtml+xml
+               application/xml
+               font/opentype
+               image/svg+xml
+               image/x-icon
+               text/css
+               text/plain
+               text/xml;
+    gzip_buffers 16 8k;
+    gzip_disable "MSIE [1-6]\.(?!.*SV1)";
+
+
+}
+EOF
+
+# Enable flarum site
+sudo ln -s /etc/nginx/sites-available/$domain_name /etc/nginx/sites-enabled/$domain_name
+
+# Remove default nginx welcome page
+if [ -f /etc/nginx/sites-enabled/default ]
+  then
+        sudo rm /etc/nginx/sites-enabled/default
+fi
+
+#Stop apache2 if running and start other services
+
+if (( $(ps -ef | grep -v grep | grep apache2 | wc -l) > 0 ))
+then
+sudo service apache2 stop
+fi
+
+sudo service php7.0-fpm stop; sudo service php7.0-fpm start
+sudo service nginx configtest && sudo service nginx restart
+
+# Database creation
+
+# Generate Password
+generated_mysql_pass=$(pwgen 20 1)
+read -sp 'Enter mysql root password ' mysql_pass
+
+domain_named=$( echo "$domain_name" | tr -d . )
+
+mysql -uroot -p"$mysql_pass" -e "CREATE DATABASE IF NOT EXISTS `flarum_$domain_named` ;"
+mysql -uroot -p"$mysql_pass" -e "CREATE USER 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass';"
+mysql -uroot -p"$mysql_pass" -e "GRANT USAGE ON flarum_$domain_named.* TO 'flarum_$domain_named'@'localhost' IDENTIFIED BY '$generated_mysql_pass' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0 ;"
+mysql -uroot -p"$mysql_pass" -e "GRANT ALL PRIVILEGES ON `flarum_$domain_named`.* TO 'flarum_$domain_named'@'localhost';"
+
+echo ""
+echo "Flarum username -> flarum_$domain_named"
+echo "Flarum database -> flarum_$domain_named"
 echo 'Flarum database password ->' "$generated_mysql_pass"
 unset mysql_pass generated_mysql_pass
