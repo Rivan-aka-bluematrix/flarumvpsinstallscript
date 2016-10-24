@@ -141,12 +141,6 @@ EOF
 # Enable flarum site
 sudo ln -s /etc/nginx/sites-available/$domain_name /etc/nginx/sites-enabled/$domain_name
 
-# Remove default nginx welcome page
-if [ -f /etc/nginx/sites-enabled/default ]
-  then
-        sudo rm /etc/nginx/sites-enabled/default
-fi
-
 #Stop apache2 if running and start other services
 
 if (( $(ps -ef | grep -v grep | grep apache2 | wc -l) > 0 ))
