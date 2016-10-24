@@ -210,13 +210,7 @@ ssl_dhparam /etc/ssl/certs/dhparam.pem;
 
 sudo cp /etc/nginx/sites-available/domain_name /etc/nginx/sites-available/$domain_name.bak
 
-    root /var/www/newoctober.pl3bs.us;
-    index index.php index.html index.htm;
-    error_log /var/log/nginx/error.log error;
-
-
-
-sed -i "s+server_name $domain_name+&\n  return 301 https://$domain_name;\n}\nserver {\n\n    listen 443 ssl http2;\n    include snippets/ssl-$domain_name.conf;\n    include snippets/ssl-params.conf;\n    root /var/www/newoctober.pl3bs.us;\n    index index.php index.html index.htm;\n    error_log /var/log/nginx/error.log error+" /etc/nginx/sites-available/"$domain_name"
+sed -i "s+server_name $domain_name+&\n  return 301 https://$domain_name;\n}\nserver {\n\n    listen 443 ssl http2;\n    include snippets/ssl-$domain_name.conf;\n    include snippets/ssl-params.conf;\n    root /var/www/$domain_name;\n    index index.php index.html index.htm;\n    error_log /var/log/nginx/error.log error+" /etc/nginx/sites-available/"$domain_name"
 nginx -t && service nginx restart
 
 sed -i "s/http/https/" /var/www/$domain_name/config.php
