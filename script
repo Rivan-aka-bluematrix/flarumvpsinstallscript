@@ -174,7 +174,7 @@ domain_name=$(nslookup "$ip_addy" | grep "name =" | awk '{ print $4 }' | rev| cu
 
 ### Confirm IP & Hostname match
 while true; do
-    reset
+ #   reset
     echo "Your Hostname is showing as: $domain_name"
     echo "Your IP  Addy is showing as: $ip_addy"
     read -p "Is the above Information correct to your Knowledge?" yn
@@ -193,12 +193,12 @@ read -p "Enter your current email address:   " email
 ### Install MailServer
 apt-get purge exim4* postfix* -qq
 apt-get install exim4 -qq
-sudo dpkg-reconfigure -f noninteractive exim4-config
+#sudo dpkg-reconfigure -f noninteractive exim4-config
 
 ### Configure Exim4
 sed -i "s/'local'/'internet'/g" /etc/exim4/update-exim4.conf.conf
-sed -i "s/'127.0.0.1/'127.0.0.1 ; $docker_addy/g" /etc/exim4/update-exim4.conf.conf
-sed -i "s|dc_relay_nets=''|dc_relay_nets='172.16.0.0/12'|g" /etc/exim4/update-exim4.conf.conf
+#sed -i "s/'127.0.0.1/'127.0.0.1 ; $docker_addy/g" /etc/exim4/update-exim4.conf.conf
+#sed -i "s|dc_relay_nets=''|dc_relay_nets='172.16.0.0/12'|g" /etc/exim4/update-exim4.conf.conf
 
 ### Generate DKIM keys
 openssl genrsa -out "$domain_name"-private.pem 1024 -outform PEM
@@ -217,7 +217,7 @@ sed -i '\|CONFDIR = /etc/exim4|a DKIM_SELECTOR = mail' /etc/exim4/exim4.conf.tem
 
 update-exim4.conf
 service exim4 restart
-reset
+#reset
 ### create list of records to be stores
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
 echo "Please enter this record with your DNS manager" >> Records
@@ -252,9 +252,6 @@ echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "Attempting to send you email regarding your DNS records"
 echo "Please check your inbox and spam folders."
 echo "If this mail is not received you will need to open the file called Records after this script exits"
-echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
-echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
-echo "Discourse is Installing Now, this will take ~3-10 minutes."
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 
