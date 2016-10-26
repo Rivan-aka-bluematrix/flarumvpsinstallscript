@@ -1,10 +1,29 @@
 #!/bin/bash
 
-read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
-
+###Get our IP & Domain Name
+ip_addy=$(wget http://ipinfo.io/ip -qO -)
+domain_name=$(nslookup "$ip_addy" | grep "name =" | awk '{ print $4 }' | rev| cut -c 2- | rev)
 domain_named=$( echo "$domain_name" | tr -d . )
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
 sudo gpasswd -a $USER www-data
+
+### Confirm IP & Hostname match
+while true; do
+ #   reset
+    echo "Your Hostname is showing as: $domain_name"
+    echo "Your IP  Addy is showing as: $ip_addy"
+    read -p "Is the above Information correct to your Knowledge?" yn
+    case $yn in
+        [Yy]* )
+        
+                break;;
+        [Nn]* ) read -p "Please Enter the Hostname of your Primary Discourse Instance:   " domain_name;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+
+### Get current Email addy
+read -p "Enter your current email address:   " email
 
 # Update lists
 echo 'Updating...'
@@ -168,42 +187,16 @@ echo "Flarum database -> flarum_$domain_named"
 echo 'Flarum database password ->' "$generated_mysql_pass"
 unset mysql_pass generated_mysql_pass
 
-###Get our IP & Domain Name
-ip_addy=$(wget http://ipinfo.io/ip -qO -)
-domain_name=$(nslookup "$ip_addy" | grep "name =" | awk '{ print $4 }' | rev| cut -c 2- | rev)
-
-### Confirm IP & Hostname match
-while true; do
- #   reset
-    echo "Your Hostname is showing as: $domain_name"
-    echo "Your IP  Addy is showing as: $ip_addy"
-    read -p "Is the above Information correct to your Knowledge?" yn
-    case $yn in
-        [Yy]* )
-        
-                break;;
-        [Nn]* ) read -p "Please Enter the Hostname of your Primary Discourse Instance:   " domain_name;;
-        * ) echo "Please answer yes or no.";;
-    esac
-done
-
-### Get current Email addy
-read -p "Enter your current email address:   " email
-
 ### Install MailServer
 apt-get purge exim4* postfix* -qq
 apt-get install exim4 -qq
-#sudo dpkg-reconfigure -f noninteractive exim4-config
 
 ### Configure Exim4
 sed -i "s/'local'/'internet'/g" /etc/exim4/update-exim4.conf.conf
-#sed -i "s/'127.0.0.1/'127.0.0.1 ; $docker_addy/g" /etc/exim4/update-exim4.conf.conf
-#sed -i "s|dc_relay_nets=''|dc_relay_nets='172.16.0.0/12'|g" /etc/exim4/update-exim4.conf.conf
 
 ### Generate DKIM keys
 openssl genrsa -out "$domain_name"-private.pem 1024 -outform PEM
 openssl rsa -in "$domain_name"-private.pem -out "$domain_name".pem -pubout -outform PEM
-
 mkdir /etc/exim4/dkim 
 mv *.pem /etc/exim4/dkim
 cp /etc/exim4/dkim/"$domain_name".pem /tmp/key.pem
@@ -217,6 +210,7 @@ sed -i '\|CONFDIR = /etc/exim4|a DKIM_SELECTOR = mail' /etc/exim4/exim4.conf.tem
 
 update-exim4.conf
 service exim4 restart
+
 #reset
 ### create list of records to be stores
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
@@ -224,27 +218,26 @@ echo "Please enter this record with your DNS manager" >> Records
 echo "Type:            A" >> Records
 echo "Host:            $domain_name" >> Records
 echo "TXT Value:       $ip_addy" >> Records
-
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
+
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:            MX" >> Records
 echo "Priority:        10" >> Records
 echo "Host:            @" >> Records
 echo "TXT Value:       $domain_name" >> Records
-
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
+
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:        TXT" >> Records
 echo "Host:        $domain_name" >> Records
 echo "TXT Value:   v=spf1 mx ip4:$ip_addy ~all" >> Records
-
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
+
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:        TXT" >> Records
 echo "Host:        mail._domainkey.$domain_name" >> Records
 echo "TXT Value:   v=DKIM1; k=rsa; p=$key" >> Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
-
 
 ### Mail Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
@@ -254,6 +247,4 @@ echo "Please check your inbox and spam folders."
 echo "If this mail is not received you will need to open the file called Records after this script exits"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
-
 cat ~/Records | mail -s Records "$email"
-echo "Enjoy!"
