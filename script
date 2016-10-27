@@ -191,6 +191,7 @@ unset mysql_pass generated_mysql_pass
 apt-get purge exim4* postfix* -qq
 apt-get install exim4 -qq
 
+
 ### Configure Exim4
 sed -i "s/'local'/'internet'/g" /etc/exim4/update-exim4.conf.conf
 
@@ -204,8 +205,8 @@ sed -i "1d" /tmp/key.pem
 sed -i "5d" /tmp/key.pem
 key=$(cat /tmp/key.pem | tr -d " \t\n\r")
 sed -i '\|CONFDIR = /etc/exim4|a DKIM_CANON = relaxed' /etc/exim4/exim4.conf.template
-sed -i '\|CONFDIR = /etc/exim4|a DKIM_DOMAIN = "$domain_name"' /etc/exim4/exim4.conf.template
-sed -i '\|CONFDIR = /etc/exim4|a DKIM_PRIVATE_KEY = CONFDIR/dkim/"$domain_name"-private.pem' /etc/exim4/exim4.conf.template
+sed -i "\|CONFDIR = /etc/exim4|a DKIM_DOMAIN = $domain_name" /etc/exim4/exim4.conf.template
+sed -i "\|CONFDIR = /etc/exim4|a DKIM_PRIVATE_KEY = CONFDIR/dkim/$domain_name-private.pem" /etc/exim4/exim4.conf.template
 sed -i '\|CONFDIR = /etc/exim4|a DKIM_SELECTOR = mail' /etc/exim4/exim4.conf.template
 
 update-exim4.conf
