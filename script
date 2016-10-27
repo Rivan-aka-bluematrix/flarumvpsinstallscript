@@ -12,7 +12,7 @@ while true; do
  #   reset
     echo "Your Hostname is showing as: $domain_name"
     echo "Your IP  Addy is showing as: $ip_addy"
-    read -p "Is the above Information correct to your Knowledge?" yn
+    read -p "Is the above Information correct to your Knowledge?   " yn
     case $yn in
         [Yy]* )
         
