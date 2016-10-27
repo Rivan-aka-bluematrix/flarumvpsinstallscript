@@ -1,15 +1,15 @@
 #!/bin/bash
 
-###Get our IP & Domain Name
+#Get our IP & Domain Name
 ip_addy=$(wget http://ipinfo.io/ip -qO -)
 domain_name=$(nslookup "$ip_addy" | grep "name =" | awk '{ print $4 }' | rev| cut -c 2- | rev)
 domain_named=$( echo "$domain_name" | tr -d . )
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
 sudo gpasswd -a $USER www-data
 
-### Confirm IP & Hostname match
+# Confirm IP & Hostname match
 while true; do
- #   reset
+    reset
     echo "Your Hostname is showing as: $domain_name"
     echo "Your IP  Addy is showing as: $ip_addy"
     read -p "Is the above Information correct to your Knowledge?   " yn
@@ -22,7 +22,7 @@ while true; do
     esac
 done
 
-### Get current Email addy
+# Get current Email addy
 read -p "Enter your current email address:   " email
 
 # Update lists
