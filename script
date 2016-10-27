@@ -207,7 +207,6 @@ sed -i '\|CONFDIR = /etc/exim4|a DKIM_SELECTOR = mail' /etc/exim4/exim4.conf.tem
 # Update Exim4
 update-exim4.conf
 service exim4 restart
-reset
 
 # create list of records to be stores
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
@@ -216,20 +215,17 @@ echo "Type:            A" >> Records
 echo "Host:            $domain_name" >> Records
 echo "TXT Value:       $ip_addy" >> Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
-
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:            MX" >> Records
 echo "Priority:        10" >> Records
 echo "Host:            @" >> Records
 echo "TXT Value:       $domain_name" >> Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
-
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:        TXT" >> Records
 echo "Host:        $domain_name" >> Records
 echo "TXT Value:   v=spf1 mx ip4:$ip_addy ~all" >> Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
-
 echo "Please enter this record with your DNS manager" >> Records
 echo "Type:        TXT" >> Records
 echo "Host:        mail._domainkey.$domain_name" >> Records
@@ -237,11 +233,13 @@ echo "TXT Value:   v=DKIM1; k=rsa; p=$key" >> Records
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"  >> Records
 
 # Mail Records
+
+reset
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "Attempting to send you email regarding your DNS records"
 echo "Please check your inbox and spam folders."
-echo "If this mail is not received you will need to open the file called Records after this script exits"
+echo "If this mail is not received you will need to open the file called Records"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 echo "#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!"
 cat ~/Records | mail -s Records "$email"
