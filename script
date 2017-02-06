@@ -2,7 +2,7 @@
 
 read -p "Please Enter the Domain Name for this Flarum instance: " domain_name;
 
-domain_named=$( echo "$domain_name" | tr -d . )
+domain_named=$( echo "$domain_name" | tr -dc '[:alnum:]' )
 flarum_install="/var/www/$domain_name" webuser_group='www-data'
 sudo gpasswd -a $USER www-data
 
