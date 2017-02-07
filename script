@@ -8,12 +8,12 @@ sudo gpasswd -a $USER www-data
 
 # Update lists
 echo 'Updating...'
-sudo apt-get update 1> /dev/null
+sudo yum update 1> /dev/null
 
 
 # Install packages
 echo 'Installing Prereqs...'
-sudo apt-get install pwgen php7.0-mysql php7.0-common zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server -qq
+yum install pwgen php7.0-mysql php7.0-common zip php7.0 php7.0-gd php7.0-xml php7.0-mbstring php7.0-curl composer nginx mysql-server -qq
 
 
 # Install composer
